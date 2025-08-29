@@ -15,7 +15,7 @@ spec:
         app: faf-api
     spec:
       containers:
-        - image: faforever/faf-java-api:v3.7.2
+        - image: local/faf-java-api
           name: faf-api
           envFrom:
             - configMapRef:

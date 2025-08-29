@@ -1,6 +1,7 @@
 config.define_string("windows-bash-path", args=False, usage="Path to bash.exe for windows")
 config.define_string("test-data-path", args=False, usage="Path to test data sql file")
 config.define_string("lobby-server-path", args=False, usage="Path to lobby server repository")
+config.define_string("faf-java-api-path", args=False, usage="Path to faf-java-api server repository")
 config.define_string_list("to-run", args=True)
 cfg = config.parse()
 windows_bash_path = cfg.get("windows-bash-path", "C:\\Program Files\\Git\\bin\\bash.exe")
@@ -46,8 +47,13 @@ k8s_resource(workload="faf-replay-server", objects=["faf-replay-server:configmap
 k8s_yaml("deploy/standard/faf-user-service.yaml")
 k8s_resource(workload="faf-user-service", objects=["faf-user-service:configmap", "faf-user-service-mail-templates","faf-user-service:ingressroute"], port_forwards=["8080"], resource_deps=["setup-hydra-clients", "faf-db-migrate","traefik_crds","populate-db"], labels=["client"], links=["http://user.localhost"])
 
-k8s_yaml("deploy/standard/faf-api.yaml")
-k8s_resource(workload="faf-api", objects=["faf-api:configmap", "faf-api-mail-templates", "faf-api-api:ingressroute", "faf-api-web:ingressroute"], resource_deps=["faf-db-migrate", "setup-rabbitmq","traefik_crds","populate-db"], labels=["client"], links=["http://api.localhost"])
+if cfg.get("faf-java-api-path"):
+    k8s_yaml("deploy/local/faf-api.yaml")
+    docker_build("local/faf-java-api", cfg.get("faf-java-api-path"))
+else:
+    k8s_yaml("deploy/standard/faf-api.yaml")
+
+k8s_resource(workload="faf-api", objects=["faf-api:configmap", "faf-api-mail-templates", "faf-api-api:ingressroute", "faf-api-web:ingressroute"], resource_deps=["faf-db-migrate", "setup-rabbitmq","traefik_crds","populate-db"], labels=["client"], port_forwards=["8010"], links=["http://api.localhost"])
 
 k8s_yaml("deploy/standard/faf-ice-breaker.yaml")
 k8s_resource(workload="faf-ice-breaker", objects=["faf-ice-breaker:configmap", "faf-ice-breaker-stripprefix", "faf-ice-breaker-api:ingressroute", "faf-ice-breaker-web:ingressroute"], resource_deps=["faf-db-migrate", "ory-hydra", "setup-rabbitmq", "traefik_crds"], labels=["client"], links=["http://api.localhost/ice"])
@@ -65,6 +71,16 @@ k8s_resource(workload="faf-ws-bridge", port_forwards=["8003","8002"], labels=["c
 
 k8s_yaml("deploy/standard/faf-league-service.yaml")
 k8s_resource(workload="faf-league-service", objects=["faf-league-service:configmap"], resource_deps=["setup-db", "setup-rabbitmq"], labels=["client"])
+
+k8s_yaml("deploy/local/minio.yaml")
+k8s_resource(
+    workload="minio",
+    objects=["minio-console:ingressroute"],
+    port_forwards=["9000", "9001"],
+    resource_deps=["traefik_crds"],
+    labels=["storage"],
+    links=["http://minio.localhost"]
+)
 
 groups = {
     "client": ["faf-api", "faf-ws-bridge", "faf-replay-server", "faf-league-service", "faf-user-service", "populate-coturn"],
